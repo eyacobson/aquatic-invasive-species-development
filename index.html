@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="en" id="imds">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Visualization of aquatic invasive species">
+  <title>AIS project tracking</title>
+  <link href='https://fonts.googleapis.com/css?family=Open+Sans:400,800,700,400italic|Open+Sans+Condensed:700|Merriweather:400,700,400italic' rel='stylesheet' type='text/css'>
+  <link rel="stylesheet" href="//maxcdn.bootstrapcdn.com/font-awesome/4.5.0/css/font-awesome.min.css">
+  <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/css/bootstrap.min.css" media="all"> 
+  <link rel='stylesheet' href='https://api.tiles.mapbox.com/mapbox.js/v3.0.1/mapbox.css' media="all"/>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/noUiSlider/8.3.0/nouislider.min.css" media="all">
+  <link rel="stylesheet" href="css/select2.min.css">
+  <link rel="stylesheet" href="css/imds-master.css" media="all">
+</head>
+<body id="imds-pt">
+  <div id="main" class="container-fluid"> 
+    <div id="width-warning" class="alert alert-danger alert-dismissible hide" role="alert">
+      <button type="button" class="close" data-dismiss="alert" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+      <strong>Warning!</strong> This application works best on a computer or tablet.
+    </div>
+
+    <div class="row">
+      <div id="ui" class="col-xs-12 col-sm-7 col-md-7 col-lg-8 no-padding-left">
+        <div id="map"></div>
+      </div>
+
+    <div id="results" class="col-xs-12 col-sm-5 col-md-5 col-lg-4"> 
+      <script id="template" type='text/ractive'>
+        <div id="results-header">
+          <div id="imds-title">
+            <h1><img src="https://greatlakesinform.org/sites/all/themes/TNCResponsive/images/nav-aa.png"> Aquatic Invasives Species</h1>
+          </div>
+        <p><strong>Projects shown:</strong> {{inputData.imdsprojects.markers.inBounds.length}}</p>
+
+        <div id="button-nav">
+          <div id="summary-buttons" class="btn-group" role="group" aria-label="...">
+            <a href="#" on-click='section-change' id="button-assess" data-target="#" class="btn btn-default {{#if appstate.activeTab === 'button-assess'}} active {{/if}}" aria-controls="home" role="button" >Assess</a>
+            <a href="#/projects" on-click='section-change' id="button-pieces" data-target="#" class="btn btn-default {{#if appstate.activeTab === 'button-pieces'}} active {{/if}}" aria-controls="home" role="button" >Projects</a>
+            <a href="#/details/{{appstate.activeDetails.nid}}" on-click='section-change' id="button-details" data-target="#details" class="btn btn-default {{#if appstate.activeTab === 'button-details'}} active {{/if}}" aria-controls="home" role="button" >Details</a>
+          </div> 
+
+          <div class="btn-group pull-right" role="group" aria-label="..." id="filter-dropdown" >
+            <div class="btn-group" role="group">  
+              <button type="button" class="btn btn-default dropdown-toggle" data-toggle="dropdown">
+                <i class="fa fa-info-circle"></i>
+              </button>
+
+              <div id="dropdown-options" class="container-fluid dropdown-menu dropdown-menu-right keep_open dropdown-box">
+                <h2>About</h2>
+                <p>
+					This application allows you to track regional investments
+					and progress towards goals for aquatic invasive species in
+					the Great Lakes.
+				</p>
+				
+				<p>
+					Visit the <i>Projects</i> tab to find information about a
+					variety of projects and the <i>Assess</i> tab and <i>Filter</i>
+					menu to further explore the current distribution of efforts
+					in AIS management.
+				</p>
+              </div>
+            </div>
+
+            <div class="btn-group" role="group">  
+              <button type="button" class="btn btn-default dropdown-toggle" data-toggle="dropdown">
+                <i class="fa fa-download"></i>
+              </button>
+
+              <div id="dropdown-options" class="container-fluid dropdown-menu dropdown-menu-right keep_open dropdown-box">
+                <h2>Download data</h2>
+                <p>Download the entire projects dataset.</p>
+                <ul>
+                  <li>
+                    <a href="https://dmajka.cartodb.com/api/v2/sql?filename=IMDS_projects&format=CSV&q=SELECT * FROM imds_ais_projects">CSV (Excel)</a>
+                  </li>
+                  <li>
+                    <a href="https://dmajka.cartodb.com/api/v2/sql?filename=IMDS_projects&format=SHP&q=SELECT * FROM imds_ais_projects">Shapefile (GIS)</a>
+                  </li>
+                  <li>
+                    <a href="https://dmajka.cartodb.com/api/v2/sql?filename=IMDS_projects&format=KML&q=SELECT * FROM imds_ais_projects">KML (Google Earth)</a>
+                  </li>
+                </ul>
+              </div>
+            </div>
+
+            <div class="btn-group" role="group">
+              <button type="button" class="btn btn-default dropdown-toggle" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                <i class="fa fa-sliders"></i> <span class="filter-label">Filter</span>
+                <span class="caret"></span>
+              </button>
+
+              <div id="filter-strip" class="container-fluid dropdown-menu dropdown-menu-right keep_open">          
+                <div class="row">
+                  <h2>Filter Data</h2>
+                  <p>Projects can be filtered by any combination of spatial overlays, funding, or thematic filters. To remove all spatial overlays and filters, click <em>Reset All Filters</em> below.</p>
+                </div>
+
+                <div class="row">
+                  <div class="col-xs-12 col-sm-6">  
+                    <h3>Spatial Overlays</h3>
+                    <div class="col-filter keep_open">
+                      <select id="spatial-select" class="form-control ">
+                        <option selected disabled> Select Extent</option>
+                        <optgroup label="Watersheds">
+                          <option value="imds_watersheds_greatlakes">Great Lake Basin</option>         
+                          <option value="huc4">HUC4</option>
+                          <option value="huc6">HUC6</option>
+                        </optgroup>   
+                        <optgroup label="Political Boundary">
+                          <option value="usa_states">State</option>
+                          <option value="congressional_districts">Congressional District</option>
+                        </optgroup>  
+                      </select>        
+                    </div>
+
+                    <div class="col-filter">
+                      <select class="form-control select2" id="spatial-select-options" multiple="multiple">      
+                      </select>
+                    </div>
+
+                    <hr/>
+                    
+                    <div class="row slider-row">
+                      <h3>Funding Year 
+                        <span class="slider-range">({{formatNumber(appstate.filters.year[0], '0')}} - {{formatNumber(appstate.filters.year[1], '0')}})</span>
+                      </h3>
+                      <div class="col-xs-12">
+                        <div id="year-slider"></div>           
+                      </div>
+                    </div>
+                    
+                    <hr/>
+
+                    <div class="row slider-row">
+                      <h3>Funding Amount 
+                        <span class="slider-range"> ({{formatNumber(appstate.filters.funding[0], '$0,0')}} - {{formatNumber(appstate.filters.funding[1], '$0,0')}})</span>
+                      </h3>
+                      <div class="col-xs-12">
+                        <div id="funding-slider"></div>           
+                      </div>
+                    </div>
+                    
+                    <hr/>
+                  </div>                  
+
+                  <div class="col-xs-12 col-sm-6"> 
+                    <h3>Thematic Filters</h3>
+                    {{#appstate.filters.active.dataquery:i}}
+                      
+                    <div class="filter-active">
+                      <div class="filter-header" data-toggle="collapse" data-target="#body-{{.field}}">
+                        <!-- <h4>{{.displayName}}</h4> -->
+                        <!-- <span class="filter-close" on-click="filter-remove:'{{i}}'" ><i class="fa fa-times"></i></span> -->
+                      </div>
+
+                      <div class="filter-body" id="body-{{.field}}">
+                        <select id="{{.field}}" class="form-control thematic-filter" multiple="multiple" value={{.selected}} decorator="select2">
+                          {{#.options:opt}}
+                            <option value="{{options[opt]}}">{{options[opt]}}</option> 
+                          {{/options}}
+                        </select>
+                      </div> 
+                    </div>
+                  
+                    {{/appstate.filters.active.dataquery}}  
+                  </div>
+                </div>
+
+                <p><a href="#" id="filter-reset" on-click="reset-filters">Reset All Filters</a></p>
+
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div role="tabpanel" class="tab-pane {{#if appstate.activeTab === 'button-assess'}} active {{/if}}" id="assess" intro='fade:{"delay":100,"duration":1000}'>
+        {{#if appstate.activeTab === 'button-assess'}}
+
+          {{#appstate.graphs:i}}
+    
+          <div class="project-card summary-card">
+            <h3 data-toggle="collapse" data-target="#collapse-{{i}}" class="graph-title" title="Click to hide or expand graph pane">{{label}}</h3>
+
+            <div id="collapse-{{i}}" class="collapse in">
+              <div class="graph-meta">
+                <ul class="list-inline" role="tablist">
+                  <li><strong>Show: </strong></li>
+                  <li class="active"><a href="#graph-{{i}}-projects-tab" role="tab" data-toggle="tab" on-click='graph-change' ># Projects</a></li>
+                  <li><a href="#graph-{{i}}-funding-tab" role="tab" data-toggle="tab" on-click='graph-change'>$ Funding</a></li>
+                  <!-- <li class="pull-right">Total $: {{data.length}}</li> -->
+                </ul>
+              </div>
+
+              <div class="tab-content">
+                <div role="tabpanel" id="graph-{{i}}-projects-tab" class="tab-pane graph-tab active">
+                  <div id="graph-{{name}}-projects" class="chart">
+                    <div class="graph-header">
+                      <div class="cat-name"><strong>Category</strong></div>
+                      <div class="cat-amt"><strong># Projects</strong></div>
+                    </div>
+                  
+                    {{#data:b}}
+                      <div id="category-{{i}}-{{b}}">
+                        <div class="cat-name"> {{name}} </div>
+                        <div class="cat-amt"> {{projectCount}}</div>                      
+                        <div class="cat-bar"> 
+                          <span class="cat-bar-inner" style="width:{{(projectCount/summary.projectMax)*100}}%;"> </span>
+                        </div>
+                      </div>
+                    {{/data}}
+                  </div>
+                </div>
+
+                <div role="tabpanel" id="graph-{{i}}-funding-tab" class="tab-pane graph-tab">
+                  <div id="graph-{{name}}-funding" class="chart">
+                    <div class="graph-header">
+                      <div class="cat-name"><strong>Category</strong></div>
+                      <div class="cat-amt"><strong>$ Funding</strong></div>
+                    </div>
+                  
+                    {{#data:b}}
+                      <div id="category-{{i}}-{{b}}">
+                        <div class="cat-name"> {{name}} </div>
+                        <div class="cat-amt"> ${{formatNumber(fundingTotal, '0,0')}}</div>                      
+                        <div class="cat-bar"> 
+                          <span class="cat-bar-inner" style="width:{{(fundingTotal/summary.fundingMax)*100}}%;"> </span>
+                        </div>
+                      </div>
+                    {{/data}}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        {{/appstate.graphs}}
+      {{/if}}
+      </div>
+
+      <div class="tab-pane {{#if appstate.activeTab === 'button-pieces'}} active {{/if}}" id="pieces">
+        {{#if appstate.activeTab === 'button-pieces'}}
+          {{#inputData.imdsprojects.markers.inBounds}}
+            <div class="project-card">
+              <h3>{{{project_title}}}</h3>
+              <p>{{{project_description}}}</p>
+              <ul class="project-links">
+                <li id="{{unique_id}}" on-click="show-popup"><i class="fa fa-map-marker"></i> Highlight on map</li>  
+                <li id="{{unique_id}}" on-click="show-details"><a href="#/details/{{database_id}}"><i class="fa fa-table"></i> View details</a></li>
+              </ul>
+            </div>
+          {{/inputData.imdsprojects.markers.inBounds}}
+        {{/if}}
+      </div>
+
+      <div role="tabpanel" class="tab-pane {{#if appstate.activeTab === 'button-details'}} active {{/if}}" id="details">
+        {{#if appstate.activeTab === 'button-details'}}
+          <div class="card-detail">  
+            {{#if appstate.activeDetails}}
+              {{#appstate.activeDetails}}
+                <h2 class="details-title">{{project_title}}</h2>
+                <p>
+                  {{#status[0]}}
+                    <strong>Status:</strong> {{status}} | 
+                  {{/status}} 
+                  <a href="#/details/{{nid}}" id="{{unique_id}}" on-click="show-popup">
+                    <i class="fa fa-map-marker"></i> Highlight on map
+                  </a>
+                </p>
+                {{#project_description}}
+                  <p class="details-description"> {{project_description}} </p>
+                {{/project_description}}
+
+                <h3>Project attributes</h3>
+                <table class="table table-hover">
+                  <tbody>
+                    <tr><td class = "col-xs-5">State </td> <td>{{state}} </td> </tr>
+                    <tr><td class = "col-xs-5">Setting </td> <td>{{great_lakes_or_inland_waters}} </td> </tr>
+                    <tr><td class = "col-xs-5">Project Phase </td> <td>{{project_phase}} </td> </tr>
+                    <tr><td class = "col-xs-5">Project Type </td> <td>{{project_type}}</td> </tr>
+                    <tr><td class = "col-xs-5">Project Focus </td> <td>{{project_focus}}</td> </tr>            
+                    <tr><td class = "col-xs-5">Continuation Project </td> <td>{{continuation_project}}</td> </tr>
+                    <tr><td class = "col-xs-5">Target Audience </td> <td>{{target_area_audience}}</td> </tr>
+                    <tr><td class = "col-xs-5">Tools/Methods </td> <td>{{tools_methods}}</td> </tr>            
+                    <tr><td class = "col-xs-5">Materials Developed</td> <td>{{materials_developed}}</td> </tr>
+                    <tr><td class = "col-xs-5">Technology Developed</td> <td>{{technology_developed}}</td> </tr>                        
+                    <tr><td class = "col-xs-5">Project Contacts </td> <td>{{project_contacts}}</td> </tr> 
+                  </tbody>                      
+                </table>
+
+                <h3>Ecological attributes</h3>
+                <table class="table table-hover">
+                  <tbody>    
+                    <tr><td class = "col-xs-5">Species Group Targeted </td> <td>{{species_taxonomic_group_targeted}}</td> </tr>
+                    <tr><td class = "col-xs-5">Taxa Targeted </td> <td>{{taxa_targeted}}</td> </tr>                          
+                    <tr><td class = "col-xs-5">Invasion Stage </td> <td>{{invasion_stage}}</td> </tr>            
+                    <tr><td class = "col-xs-5">Habitat type </td> <td>{{habitat_type}}</td> </tr>
+                    <tr><td class = "col-xs-5">Area Populations Managed </td> <td>{{area_populations_managed}}</td> </tr>
+                    <tr><td class = "col-xs-5">Population Reduction </td> <td>{{population_reduction}}</td> </tr>
+                    <tr><td class = "col-xs-5">Vector Pathway Addressed </td> <td>{{vector_pathway_addressed}}</td> </tr>
+                    <tr><td class = "col-xs-5">Specific Vector </td> <td>{{specific_vector}}</td> </tr>
+                  </tbody>                                                                        
+                </table>
+
+                <h3>Funding</h3>
+                <table class="table table-hover">
+                  <tbody>
+                    <tr><td class = "col-xs-5">Funding Year</td> <td>{{funding_year}}</td> </tr>                  
+                    <tr><td class = "col-xs-5">Funding Agency</td> <td>{{funding_agency}}</td> </tr>
+                    <tr><td class = "col-xs-5">Funding Source</td> <td>{{funding_source}}</td> </tr>
+                    <tr><td class = "col-xs-5">Award Amount</td> <td>{{award_amount}}</td> </tr>
+                    <tr><td class = "col-xs-5">Recipient</td><td>{{recipient}}</td> </tr> 
+                    <tr><td class = "col-xs-5">Funded through a plan</td><td>{{funded_through_a_plan}}</td> </tr>
+                  </tbody>                                       
+                </table>
+
+              {{/appstate.activeDetails}}
+            {{else}}
+              <h3>View Details</h3>
+              <p>Select a project to view its details.</p>
+            {{/if}}
+          </div>
+        {{/if}}
+      </div>  
+  	</script>   
+  </div> <!-- End results -->
+</div> <!-- End row -->
+</div> <!-- End main -->
+
+  <div class="container-fluid footer"></div>
+  <script src='https://api.mapbox.com/mapbox.js/v3.0.1/mapbox.js'></script>
+  <script type="text/javascript" src="js/bundle.min.js"></script>    
+</body>
+</html>
